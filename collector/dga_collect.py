@@ -31,22 +31,38 @@ SERIES = [
     ("quebrada_macul_lluvia", "05730039-6", "3", RAIN, "rain"),
     ("quebrada_ramon_nivel", "05730008-6", "1", "Nivel de Agua (m)", "level"),
     ("quebrada_ramon_caudal", "05730008-6", "12", "Caudal (m3/seg)", "flow"),
+    # Lo mas cercano a Quebrada Honda (no hay estacion DGA dentro de la cuenca).
+    ("parque_arrayan_lluvia", "05722008-2", "3", RAIN, "rain"),
+    ("cerro_calan_lluvia", "05730012-4", "3", RAIN, "rain"),
 ]
 STATIONS = {
     "05730013-2": {"nombre": "Antupirén"},
     "05730039-6": {"nombre": "Quebrada de Macul"},
     "05730008-6": {"nombre": "Quebrada de Ramón en recinto EMOS"},
+    "05722008-2": {"nombre": "Parque El Arrayán"},
+    "05730012-4": {"nombre": "Cerro Calán"},
 }
 LATEST_HOURS = 48
 TIMEOUT_S = 600
 RETRIES = 3
 
 
-def fetch_graph(end: dt.date) -> str:
+def groups() -> list:
+    """El formulario de la DGA acepta 3 estaciones por consulta: se agrupan las series en ese orden."""
+    out = []
+    for serie in SERIES:
+        if out and (serie[1] in {s[1] for s in out[-1]} or len({s[1] for s in out[-1]}) < 3):
+            out[-1].append(serie)
+        else:
+            out.append([serie])
+    return out
+
+
+def fetch_graph(end: dt.date, series: list) -> str:
     jar = http.cookiejar.CookieJar()
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
     opener.addheaders = [("User-Agent", "andes-weather-dga-collector/1.0")]
-    codes = list(dict.fromkeys(s[1] for s in SERIES))
+    codes = list(dict.fromkeys(s[1] for s in series))
     codes += ["-1"] * (3 - len(codes))
     opener.open(BASE + "dgasat_param.jsp?param=1", timeout=TIMEOUT_S).read()
     form = {"accion": "refresca", "param": "1", "EsDL1": "0", "EsDL2": "0", "EsDL3": "0", "UserID": "nobody"}
@@ -54,7 +70,7 @@ def fetch_graph(end: dt.date) -> str:
     opener.open(BASE + "dgasat_param_1.jsp", urllib.parse.urlencode(form).encode(), timeout=TIMEOUT_S).read()
     day = end.strftime("%d/%m/%Y")
     data = [(f"estacion{i + 1}", c) for i, c in enumerate(codes)]
-    data += [("parametros", f"{code}_{pid}_{name}") for _, code, pid, name, _ in SERIES]
+    data += [("parametros", f"{code}_{pid}_{name}") for _, code, pid, name, _ in series]
     data += [("accion", "refresca"), ("param", ""), ("tipo", "ANO"), ("fechaFinGrafico", day), ("hora_fin", "0"),
              ("tiporep", "I"), ("period", "1d"), ("fechaInicioTabla", day), ("fechaFinTabla", day),
              ("UserID", "nobody"), ("EsDL1", "0"), ("EsDL2", "0"), ("EsDL3", "0")]
@@ -173,24 +189,26 @@ def latest(series: dict, now: dt.datetime) -> dict:
 def main() -> int:
     folder = sys.argv[1] if len(sys.argv) > 1 else "data"
     today = dt.datetime.now(TZ).date()
-    html = None
-    for attempt in range(1, RETRIES + 1):
-        try:
-            started = time.time()
-            html = fetch_graph(today)
-            print(f"DGA respondio en {time.time() - started:.0f} s ({len(html) // 1024} KB)")
-            break
-        except Exception as e:  # noqa: BLE001 - se reintenta cualquier falla de red
-            print(f"intento {attempt} fallo: {e}")
-            if attempt < RETRIES:
-                time.sleep(30 * attempt)
-    if html is None:
+    series = {}
+    for group in groups():
+        names = ", ".join(s[0] for s in group)
+        html = None
+        for attempt in range(1, RETRIES + 1):
+            try:
+                started = time.time()
+                html = fetch_graph(today, group)
+                print(f"DGA respondio en {time.time() - started:.0f} s ({len(html) // 1024} KB): {names}")
+                break
+            except Exception as e:  # noqa: BLE001 - se reintenta cualquier falla de red
+                print(f"intento {attempt} fallo ({names}): {e}")
+                if attempt < RETRIES:
+                    time.sleep(30 * attempt)
+        if html is not None:
+            series.update({k: v for k, v in parse(html).items() if k in {s[0] for s in group}})
+    # Una consulta fallida deja sus series "sin_datos" en latest.json; las demas se publican igual.
+    if sum(len(v) for v in series.values()) == 0:
+        print("Ninguna consulta trajo mediciones: la DGA no responde o su pagina cambio.")
         return 1
-    series = parse(html)
-    total = sum(len(v) for v in series.values())
-    if total == 0:
-        print("La respuesta no trae mediciones: la pagina de la DGA puede haber cambiado.")
-        return 2
     for sid, points in series.items():
         added = merge_csv(folder, sid, points)
         last = max(points).isoformat(timespec="minutes") if points else "-"

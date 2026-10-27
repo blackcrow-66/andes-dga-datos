@@ -10,6 +10,13 @@ Andes Weather.
 | `quebrada_macul_lluvia` | Quebrada de Macul 05730039-6 | Lluvia acumulada (mm) |
 | `quebrada_ramon_nivel` | Q. de Ramón en recinto EMOS 05730008-6 | Nivel de agua (m) |
 | `quebrada_ramon_caudal` | Q. de Ramón en recinto EMOS 05730008-6 | Caudal (m³/s) |
+| `parque_arrayan_lluvia` | Parque El Arrayán 05722008-2 | Lluvia acumulada (mm), la más cercana a Quebrada Honda |
+| `cerro_calan_lluvia` | Cerro Calán 05730012-4 | Lluvia acumulada (mm) |
+
+No hay estación DGA dentro de Quebrada Honda. Parque El Arrayán coincidió con sus dos eventos de
+octubre de 2026: 9,1 mm entre 15 y 16 h el 8-oct (aluvión cerca de las 17 h) y 30,8 mm entre 21 y
+22 h el 26-oct (desborde en la noche). Estero Arrayán en La Montosa no se incluye: su pluviómetro marca
+0 y su caudal oscila sin relación con la lluvia.
 
 ## Archivos
 
@@ -23,7 +30,7 @@ Andes Weather.
 
 GitHub Actions ejecuta `collector/dga_collect.py` cada 30 minutos
 (`.github/workflows/collect.yml`) y guarda los cambios con un commit. La DGA tarda entre 2 y 5 minutos
-en responder. Si la ejecución falla varias veces seguidas, GitHub envía un correo al dueño del
+en responder por consulta y se hacen 2 consultas (máximo 3 estaciones cada una). Si la ejecución falla varias veces seguidas, GitHub envía un correo al dueño del
 repositorio.
 
 Para probar en el computador:
