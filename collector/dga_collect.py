@@ -160,19 +160,24 @@ def latest(series: dict, now: dt.datetime) -> dict:
         else:
             entry["valor"] = points[last_time]
             entry["unidad"] = "m" if kind == "level" else "m3/s"
-            entry["serie"] = [{"hora": iso(t), "valor": v} for t, v in sorted(points.items()) if t > since]
+            # Una lectura cada 10 min basta para seguir una crecida y mantiene liviano el archivo.
+            buckets = {}
+            for t, v in sorted(points.items()):
+                if t > since:
+                    buckets.setdefault(t.replace(minute=t.minute - t.minute % 10, second=0), (t, v))
+            entry["serie"] = [{"hora": iso(t), "valor": v} for t, v in buckets.values()]
         result["estaciones"].append(entry)
     return result
 
 
 def main() -> int:
     folder = sys.argv[1] if len(sys.argv) > 1 else "data"
-    now = dt.datetime.now(TZ).replace(tzinfo=None, second=0, microsecond=0)
+    today = dt.datetime.now(TZ).date()
     html = None
     for attempt in range(1, RETRIES + 1):
         try:
             started = time.time()
-            html = fetch_graph(now.date())
+            html = fetch_graph(today)
             print(f"DGA respondio en {time.time() - started:.0f} s ({len(html) // 1024} KB)")
             break
         except Exception as e:  # noqa: BLE001 - se reintenta cualquier falla de red
@@ -191,8 +196,9 @@ def main() -> int:
         last = max(points).isoformat(timespec="minutes") if points else "-"
         print(f"{sid}: {len(points)} mediciones, {added} nuevas, ultima {last}")
     os.makedirs(folder, exist_ok=True)
+    now = dt.datetime.now(TZ).replace(tzinfo=None, second=0, microsecond=0)
     with open(os.path.join(folder, "latest.json"), "w", encoding="utf-8") as f:
-        json.dump(latest(series, now), f, ensure_ascii=False, indent=1)
+        json.dump(latest(series, now), f, ensure_ascii=False, separators=(",", ":"))
     return 0
 
 
