@@ -25,7 +25,7 @@ jobs:
           python-version: "3.12"
 
       - name: Consultar DGA
-        run: python collector/dga_collect.py data
+        run: python -u collector/dga_collect.py data
 
       - name: Guardar datos
         run: |
@@ -38,4 +38,13 @@ jobs:
             git commit -m "Datos DGA $(TZ=America/Santiago date '+%Y-%m-%d %H:%M')"
             git pull --rebase
             git push
+          fi
+
+      # Despues de guardar: si aparecio un problema nuevo, la ejecucion queda en rojo y GitHub avisa
+      # por correo. Mientras el problema siga, las siguientes ejecuciones quedan en verde.
+      - name: Avisar problemas nuevos
+        run: |
+          if [ -f .aviso ]; then
+            cat .aviso
+            exit 1
           fi

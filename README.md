@@ -22,6 +22,8 @@ octubre de 2026: 9,1 mm entre 15 y 16 h el 8-oct (aluvión cerca de las 17 h) y 
 
 - `data/latest.json`: últimas 48 h. Para la lluvia: mm por hora (la hora marca el **fin** de la hora,
   igual que Open-Meteo), lluvia de la última hora y de las últimas 24 h.
+- `data/health.json`: problemas actuales (serie de lluvia sin mediciones en 3 h, o la DGA sin
+  responder) y desde cuándo.
 - `data/raw/<serie>/<AAAA-MM>.csv`: todas las mediciones tal como las entrega la DGA
   (`hora_local` en hora de Chile, `valor`). La lluvia es un contador acumulado: la lluvia de un
   período es la diferencia entre dos lecturas.
@@ -30,8 +32,9 @@ octubre de 2026: 9,1 mm entre 15 y 16 h el 8-oct (aluvión cerca de las 17 h) y 
 
 GitHub Actions ejecuta `collector/dga_collect.py` cada 30 minutos
 (`.github/workflows/collect.yml`) y guarda los cambios con un commit. La DGA tarda entre 2 y 5 minutos
-en responder por consulta y se hacen 2 consultas (máximo 3 estaciones cada una). Si la ejecución falla varias veces seguidas, GitHub envía un correo al dueño del
-repositorio.
+en responder por consulta y se hacen 2 consultas (máximo 3 estaciones cada una). Cuando aparece un problema nuevo en `health.json`,
+la ejecución termina en rojo (paso "Avisar problemas nuevos") y GitHub envía un correo; mientras el
+problema siga, las ejecuciones quedan en verde para no repetir el aviso cada 30 min.
 
 Para probar en el computador:
 

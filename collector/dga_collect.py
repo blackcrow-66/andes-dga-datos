@@ -43,6 +43,10 @@ STATIONS = {
     "05730012-4": {"nombre": "Cerro Calán"},
 }
 LATEST_HOURS = 48
+# Una serie de lluvia sin mediciones nuevas en este tiempo es un problema (estacion o DGA caida).
+STALE_HOURS = 3
+# Si aparece un problema nuevo el workflow termina en rojo una vez (GitHub avisa por correo).
+ALERT_FILE = ".aviso"
 TIMEOUT_S = 600
 RETRIES = 3
 
@@ -186,6 +190,47 @@ def latest(series: dict, now: dt.datetime) -> dict:
     return result
 
 
+def problems(series: dict, now: dt.datetime) -> dict:
+    """{clave: detalle} de lo que no anda: la DGA entera o cada serie de lluvia sin datos o atrasada."""
+    if sum(len(v) for v in series.values()) == 0:
+        return {"dga": "La DGA no respondió o su página cambió: no se obtuvo ninguna medición."}
+    found = {}
+    for sid, code, _, _, kind in SERIES:
+        if kind != "rain":
+            continue
+        name = STATIONS[code]["nombre"]
+        points = series.get(sid) or {}
+        if not points:
+            found[sid] = f"{name}: la DGA no entregó mediciones."
+        elif now - max(points) > dt.timedelta(hours=STALE_HOURS):
+            found[sid] = f"{name}: sin mediciones desde {max(points).strftime('%d-%m %H:%M')}."
+    return found
+
+
+def check_health(folder: str, series: dict, now: dt.datetime) -> None:
+    """Guarda data/health.json y deja ALERT_FILE solo cuando aparece un problema que no estaba antes."""
+    path = os.path.join(folder, "health.json")
+    previous = {}
+    if os.path.exists(path):
+        with open(path, encoding="utf-8") as f:
+            previous = {p["clave"]: p for p in json.load(f).get("problemas", [])}
+    current = problems(series, now)
+    for key in previous.keys() - current.keys():
+        print(f"Recuperado: {previous[key]['detalle']}")
+    entries = [
+        {"clave": k, "detalle": v, "desde": previous[k]["desde"] if k in previous else iso(now)}
+        for k, v in sorted(current.items())
+    ]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump({"revisado": iso(now), "problemas": entries}, f, ensure_ascii=False, indent=1)
+    new = [current[k] for k in sorted(current.keys() - previous.keys())]
+    if new:
+        text = "Problemas nuevos en los datos DGA:\n" + "\n".join(f"- {n}" for n in new)
+        print(text)
+        with open(ALERT_FILE, "w", encoding="utf-8") as f:
+            f.write(text + "\n")
+
+
 def main() -> int:
     folder = sys.argv[1] if len(sys.argv) > 1 else "data"
     today = dt.datetime.now(TZ).date()
@@ -205,18 +250,19 @@ def main() -> int:
                     time.sleep(30 * attempt)
         if html is not None:
             series.update({k: v for k, v in parse(html).items() if k in {s[0] for s in group}})
+    now = dt.datetime.now(TZ).replace(tzinfo=None, second=0, microsecond=0)
+    os.makedirs(folder, exist_ok=True)
     # Una consulta fallida deja sus series "sin_datos" en latest.json; las demas se publican igual.
     if sum(len(v) for v in series.values()) == 0:
         print("Ninguna consulta trajo mediciones: la DGA no responde o su pagina cambio.")
-        return 1
-    for sid, points in series.items():
-        added = merge_csv(folder, sid, points)
-        last = max(points).isoformat(timespec="minutes") if points else "-"
-        print(f"{sid}: {len(points)} mediciones, {added} nuevas, ultima {last}")
-    os.makedirs(folder, exist_ok=True)
-    now = dt.datetime.now(TZ).replace(tzinfo=None, second=0, microsecond=0)
-    with open(os.path.join(folder, "latest.json"), "w", encoding="utf-8") as f:
-        json.dump(latest(series, now), f, ensure_ascii=False, separators=(",", ":"))
+    else:
+        for sid, points in series.items():
+            added = merge_csv(folder, sid, points)
+            last = max(points).isoformat(timespec="minutes") if points else "-"
+            print(f"{sid}: {len(points)} mediciones, {added} nuevas, ultima {last}")
+        with open(os.path.join(folder, "latest.json"), "w", encoding="utf-8") as f:
+            json.dump(latest(series, now), f, ensure_ascii=False, separators=(",", ":"))
+    check_health(folder, series, now)
     return 0
 
 
