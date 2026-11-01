@@ -1,15 +1,4 @@
 {
- "revisado": "2026-11-01T13:02-03:00",
- "problemas": [
-  {
-   "clave": "cerro_calan_lluvia",
-   "detalle": "Cerro Calán: la DGA no entregó mediciones.",
-   "desde": "2026-11-01T13:02-03:00"
-  },
-  {
-   "clave": "parque_arrayan_lluvia",
-   "detalle": "Parque El Arrayán: la DGA no entregó mediciones.",
-   "desde": "2026-11-01T13:02-03:00"
-  }
- ]
+ "revisado": "2026-11-01T13:25-03:00",
+ "problemas": []
 }
