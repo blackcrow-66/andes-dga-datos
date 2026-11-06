@@ -40,9 +40,9 @@ jobs:
             git push
           fi
 
-      # Despues de guardar: si aparecio un problema nuevo, la ejecucion queda en rojo y GitHub avisa
-      # por correo. Mientras el problema siga, las siguientes ejecuciones quedan en verde.
-      - name: Avisar problemas nuevos
+      # Despues de guardar: si un problema sigue en dos ejecuciones seguidas, la ejecucion queda en rojo
+      # y GitHub avisa por correo. Mientras el problema siga, las siguientes ejecuciones quedan en verde.
+      - name: Avisar problemas
         run: |
           if [ -f .aviso ]; then
             cat .aviso

@@ -49,6 +49,9 @@ STALE_HOURS = 3
 ALERT_FILE = ".aviso"
 TIMEOUT_S = 600
 RETRIES = 3
+# Grupo con varias estaciones: menos intentos conjuntos y luego uno o dos por estacion.
+GROUP_RETRIES = 2
+STATION_RETRIES = 2
 
 
 def groups() -> list:
@@ -208,7 +211,11 @@ def problems(series: dict, now: dt.datetime) -> dict:
 
 
 def check_health(folder: str, series: dict, now: dt.datetime) -> None:
-    """Guarda data/health.json y deja ALERT_FILE solo cuando aparece un problema que no estaba antes."""
+    """Guarda data/health.json y deja ALERT_FILE cuando un problema sigue en dos ejecuciones seguidas.
+
+    La DGA falla a ratos y se recupera sola en la ejecucion siguiente (nov-2026): avisar al primer
+    fallo mandaba un correo por cada parpadeo. Cada problema se avisa una sola vez mientras dure.
+    """
     path = os.path.join(folder, "health.json")
     previous = {}
     if os.path.exists(path):
@@ -217,18 +224,43 @@ def check_health(folder: str, series: dict, now: dt.datetime) -> None:
     current = problems(series, now)
     for key in previous.keys() - current.keys():
         print(f"Recuperado: {previous[key]['detalle']}")
+    # Entradas antiguas sin "avisado" ya se avisaron al aparecer (regla anterior).
+    to_alert = sorted(k for k in current if k in previous and not previous[k].get("avisado", True))
     entries = [
-        {"clave": k, "detalle": v, "desde": previous[k]["desde"] if k in previous else iso(now)}
+        {
+            "clave": k,
+            "detalle": v,
+            "desde": previous[k]["desde"] if k in previous else iso(now),
+            "avisado": k in to_alert or (k in previous and previous[k].get("avisado", True)),
+        }
         for k, v in sorted(current.items())
     ]
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"revisado": iso(now), "problemas": entries}, f, ensure_ascii=False, indent=1)
-    new = [current[k] for k in sorted(current.keys() - previous.keys())]
+    for k in sorted(current.keys() - previous.keys()):
+        print(f"Problema nuevo (se avisa si sigue en la proxima ejecucion): {current[k]}")
+    new = [current[k] for k in to_alert]
     if new:
-        text = "Problemas nuevos en los datos DGA:\n" + "\n".join(f"- {n}" for n in new)
+        text = "Problemas en los datos DGA (siguen tras dos ejecuciones):\n" + "\n".join(f"- {n}" for n in new)
         print(text)
         with open(ALERT_FILE, "w", encoding="utf-8") as f:
             f.write(text + "\n")
+
+
+def fetch_series(today: dt.date, group: list, retries: int):
+    """{id de serie: puntos} de las series del grupo, o None si todos los intentos fallaron."""
+    names = ", ".join(s[0] for s in group)
+    for attempt in range(1, retries + 1):
+        try:
+            started = time.time()
+            html = fetch_graph(today, group)
+            print(f"DGA respondio en {time.time() - started:.0f} s ({len(html) // 1024} KB): {names}")
+            return {k: v for k, v in parse(html).items() if k in {s[0] for s in group}}
+        except Exception as e:  # noqa: BLE001 - se reintenta cualquier falla de red
+            print(f"intento {attempt} fallo ({names}): {e}")
+            if attempt < retries:
+                time.sleep(30 * attempt)
+    return None
 
 
 def main() -> int:
@@ -236,20 +268,21 @@ def main() -> int:
     today = dt.datetime.now(TZ).date()
     series = {}
     for group in groups():
-        names = ", ".join(s[0] for s in group)
-        html = None
-        for attempt in range(1, RETRIES + 1):
-            try:
-                started = time.time()
-                html = fetch_graph(today, group)
-                print(f"DGA respondio en {time.time() - started:.0f} s ({len(html) // 1024} KB): {names}")
-                break
-            except Exception as e:  # noqa: BLE001 - se reintenta cualquier falla de red
-                print(f"intento {attempt} fallo ({names}): {e}")
-                if attempt < RETRIES:
-                    time.sleep(30 * attempt)
-        if html is not None:
-            series.update({k: v for k, v in parse(html).items() if k in {s[0] for s in group}})
+        by_station = {}
+        for s in group:
+            by_station.setdefault(s[1], []).append(s)
+        if len(by_station) == 1:
+            series.update(fetch_series(today, group, RETRIES))
+            continue
+        # La DGA a veces responde 500 a una consulta conjunta que por separado si funciona (nov-2026):
+        # pocos reintentos del grupo y despues una consulta por estacion, para no pasar el limite del workflow.
+        got = fetch_series(today, group, GROUP_RETRIES)
+        if got is None:
+            print("Consulta conjunta fallida: se pide cada estacion por separado.")
+            got = {}
+            for station in by_station.values():
+                got.update(fetch_series(today, station, STATION_RETRIES) or {})
+        series.update(got)
     now = dt.datetime.now(TZ).replace(tzinfo=None, second=0, microsecond=0)
     os.makedirs(folder, exist_ok=True)
     # Una consulta fallida deja sus series "sin_datos" en latest.json; las demas se publican igual.

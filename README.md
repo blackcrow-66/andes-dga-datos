@@ -32,9 +32,11 @@ octubre de 2026: 9,1 mm entre 15 y 16 h el 8-oct (aluvión cerca de las 17 h) y 
 
 GitHub Actions ejecuta `collector/dga_collect.py` cada 30 minutos
 (`.github/workflows/collect.yml`) y guarda los cambios con un commit. La DGA tarda entre 2 y 5 minutos
-en responder por consulta y se hacen 2 consultas (máximo 3 estaciones cada una). Cuando aparece un problema nuevo en `health.json`,
-la ejecución termina en rojo (paso "Avisar problemas nuevos") y GitHub envía un correo; mientras el
-problema siga, las ejecuciones quedan en verde para no repetir el aviso cada 30 min.
+en responder por consulta y se hacen 2 consultas (máximo 3 estaciones cada una). Si una consulta conjunta
+falla (la DGA a veces responde 500 a una que por separado sí funciona), se pide cada estación por separado.
+Cuando un problema de `health.json` sigue en dos ejecuciones seguidas, la ejecución termina en rojo
+(paso "Avisar problemas") y GitHub envía un correo; mientras el problema siga, las ejecuciones quedan en
+verde para no repetir el aviso cada 30 min. Un fallo que se recupera solo en la ejecución siguiente no avisa.
 
 Para probar en el computador:
 
