@@ -1,11 +1,4 @@
 {
- "revisado": "2026-11-07T17:24-03:00",
- "problemas": [
-  {
-   "clave": "parque_arrayan_lluvia",
-   "detalle": "Parque El Arrayán: la DGA no entregó mediciones.",
-   "desde": "2026-11-07T15:48-03:00",
-   "avisado": true
-  }
- ]
+ "revisado": "2026-11-07T18:14-03:00",
+ "problemas": []
 }
