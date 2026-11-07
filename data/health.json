@@ -1,11 +1,11 @@
 {
- "revisado": "2026-11-07T00:26-03:00",
+ "revisado": "2026-11-07T01:28-03:00",
  "problemas": [
   {
    "clave": "quebrada_macul_lluvia",
    "detalle": "Quebrada de Macul: la DGA no entregó mediciones.",
    "desde": "2026-11-07T00:26-03:00",
-   "avisado": false
+   "avisado": true
   }
  ]
 }
