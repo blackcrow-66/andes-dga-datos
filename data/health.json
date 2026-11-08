@@ -1,11 +1,11 @@
 {
- "revisado": "2026-11-08T00:54-03:00",
+ "revisado": "2026-11-08T01:55-03:00",
  "problemas": [
   {
    "clave": "dga",
    "detalle": "La DGA no respondió o su página cambió: no se obtuvo ninguna medición.",
    "desde": "2026-11-08T00:54-03:00",
-   "avisado": false
+   "avisado": true
   }
  ]
 }
