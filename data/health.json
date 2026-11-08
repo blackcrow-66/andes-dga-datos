@@ -1,17 +1,23 @@
 {
- "revisado": "2026-11-07T20:52-03:00",
+ "revisado": "2026-11-08T00:28-03:00",
  "problemas": [
+  {
+   "clave": "antupiren_lluvia",
+   "detalle": "Antupirén: la DGA no entregó mediciones.",
+   "desde": "2026-11-08T00:28-03:00",
+   "avisado": false
+  },
+  {
+   "clave": "cerro_calan_lluvia",
+   "detalle": "Cerro Calán: la DGA no entregó mediciones.",
+   "desde": "2026-11-08T00:28-03:00",
+   "avisado": false
+  },
   {
    "clave": "parque_arrayan_lluvia",
    "detalle": "Parque El Arrayán: la DGA no entregó mediciones.",
    "desde": "2026-11-07T19:51-03:00",
    "avisado": true
-  },
-  {
-   "clave": "quebrada_macul_lluvia",
-   "detalle": "Quebrada de Macul: la DGA no entregó mediciones.",
-   "desde": "2026-11-07T20:52-03:00",
-   "avisado": false
   }
  ]
 }
